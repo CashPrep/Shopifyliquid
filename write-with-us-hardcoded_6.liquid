@@ -1,0 +1,476 @@
+{%- comment -%}
+  Write with Us — AI card message assistant.
+  Paste this into your product page template (e.g. sections/main-product.liquid),
+  in the exact spot you want it to appear (below Verified Fair Trade, etc.).
+  Works dynamically on every product — no per-card files needed.
+
+  Color: fixed at #af95a6 across the whole tool on every product — no
+  per-card metafield color-matching (that was tried and then intentionally
+  replaced with this single fixed color per your latest instruction).
+{%- endcomment -%}
+
+{%- assign qc_color = "#af95a6" -%}
+
+<style>
+/* Write with Us — Theme App Extension styles */
+
+.qc-widget-inline * { box-sizing: border-box; }
+
+.btn-write {
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+  width: 100%; background: #af95a6; color: #fff; border: none;
+  padding: 14px; font-size: 13px; letter-spacing: .1em; font-weight: 600; cursor: pointer;
+  margin-top: 20px; margin-bottom: 24px; border-radius: 2px; text-align: center; line-height: 1.4;
+  transition: background .15s ease; text-transform: uppercase; font-family: 'DM Sans', sans-serif;
+}
+.btn-write:hover { background: #93788c; }
+.btn-write svg { width: 15px; height: 15px; flex-shrink: 0; }
+
+/* --- Side panel drawer --- */
+.wm-overlay {
+  display: none; position: fixed; inset: 0; background: rgba(44,45,46,.35); z-index: 998;
+}
+.wm-overlay.open { display: block; }
+
+.wm-panel {
+  position: fixed; top: 0; right: -440px; width: 420px; max-width: 100vw; height: 100vh; background: #fff;
+  box-shadow: -12px 0 40px rgba(0,0,0,.18); z-index: 999; transition: right .3s ease;
+  display: flex; flex-direction: column; font-family: 'DM Sans', sans-serif; color: #2c2d2e;
+}
+.wm-panel.open { right: 0; }
+
+.wm-panel-head { padding: 22px 24px; flex-shrink: 0; position: relative; }
+.wm-panel-head h2 { font-family: 'Cardo', Georgia, serif; font-size: 22px; color: #fff; margin-bottom: 6px; }
+.wm-panel-head p { font-size: 13px; color: #fff; margin: 0; }
+.wm-panel-close {
+  position: absolute; top: 18px; right: 20px; background: none; border: none;
+  font-size: 22px; color: #2c2d2e; cursor: pointer; line-height: 1;
+}
+
+.wm-panel-body { padding: 22px 24px; overflow-y: auto; flex: 1; }
+
+.qc-how-it-works {
+  background: #fff; border: 1px solid #e5e0e3; border-radius: 8px;
+  padding: 12px 14px; margin-bottom: 18px; font-size: 12.5px; line-height: 1.5; color: #444;
+}
+
+.wm-context {
+  display: flex; align-items: center; gap: 10px; background: #faf7f8;
+  border: 1px solid #e5e0e3; border-radius: 8px; padding: 10px 12px; margin-bottom: 18px;
+}
+.wm-context img { width: 36px; height: 36px; object-fit: cover; border-radius: 4px; }
+.wm-context span { font-size: 12px; color: #777; }
+.wm-context strong { font-size: 13px; color: #2c2d2e; display: block; }
+
+.qc-section { background: #fff; border: 1px solid #e5e0e3; border-radius: 10px; padding: 18px; margin-bottom: 16px; }
+.qc-label { font-size: 11px; text-transform: uppercase; letter-spacing: .08em; color: #af95a6; margin-bottom: 6px; display: block; font-weight: 700; }
+.qc-input, .qc-select, .qc-textarea {
+  width: 100%; padding: 12px; border: 1px solid #e5e0e3; border-radius: 8px;
+  background: #fff; font-size: 15px; margin-bottom: 14px; color: #2c2d2e; font-family: 'DM Sans', sans-serif;
+}
+.qc-textarea { resize: vertical; min-height: 56px; }
+.qc-toggle-row { display: flex; gap: 8px; margin-bottom: 14px; }
+.qc-toggle-btn {
+  flex: 1; padding: 10px; text-align: center; border-radius: 8px; cursor: pointer;
+  font-size: 13px; font-weight: 600; border: 1px solid #e5e0e3; background: #fff; color: #2c2d2e;
+  transition: background .15s ease, border-color .15s ease;
+}
+.qc-toggle-btn.active { background: var(--qc-envelope, #af95a6); border-color: var(--qc-envelope, #af95a6); }
+.qc-btn {
+  width: 100%; background: #2c2d2e; color: #fff; border: none; border-radius: 999px;
+  padding: 15px; font-size: 13px; font-weight: 600; cursor: pointer; letter-spacing: .1em;
+  text-transform: uppercase; font-family: 'DM Sans', sans-serif;
+  display: flex; align-items: center; justify-content: center; gap: 8px;
+}
+.qc-btn svg { width: 15px; height: 15px; flex-shrink: 0; }
+.qc-btn-secondary { background: transparent; color: #af95a6; border: 1px solid #af95a6; margin-top: 8px; border-radius: 8px; }
+.qc-result { background: #faf8f5; border: 1px solid #e5e0e3; border-radius: 10px; padding: 16px; margin-bottom: 12px; display: flex; gap: 12px; align-items: flex-start; position: relative; }
+.qc-refreshed-tag {
+  font-size: 10px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700;
+  color: var(--qc-envelope, #93788c); margin-bottom: 6px; display: inline-block;
+}
+.qc-result.locked { border-color: var(--qc-envelope, #af95a6); background: #fff; }
+.qc-result-check { margin-top: 3px; width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--qc-envelope, #af95a6); cursor: pointer; }
+.qc-result-main { flex: 1; min-width: 0; }
+.qc-locked-tag { font-size: 10px; text-transform: uppercase; letter-spacing: .06em; font-weight: 700; color: #2c2d2e; margin-bottom: 6px; display: inline-block; }
+.qc-bottom-row { display: flex; gap: 10px; margin-top: 4px; }
+.qc-bottom-row .qc-btn-secondary { margin-top: 0; }
+.qc-clipboard-bar {
+  display: flex; align-items: center; justify-content: space-between; gap: 8px;
+  background: #faf8f5; border: 1px solid #e5e0e3; border-radius: 8px; padding: 10px 14px;
+  margin-bottom: 14px; cursor: pointer; font-size: 13px; color: #2c2d2e; font-weight: 600;
+}
+.qc-clipboard-bar .count { background: var(--qc-envelope, #af95a6); color: #2c2d2e; border-radius: 999px; padding: 2px 9px; font-size: 12px; font-weight: 700; }
+.qc-clipboard-panel { border: 1px solid #e5e0e3; border-radius: 8px; margin-bottom: 14px; overflow: hidden; }
+.qc-clipboard-item { padding: 12px 14px; border-bottom: 1px solid #e5e0e3; font-size: 13px; color: #2c2d2e; display: flex; justify-content: space-between; gap: 10px; align-items: flex-start; }
+.qc-clipboard-item:last-child { border-bottom: none; }
+.qc-clipboard-item-text { flex: 1; font-family: 'Cardo', Georgia, serif; font-size: 14.5px; line-height: 1.4; }
+.qc-clipboard-remove { font-size: 12px; color: #b23; background: none; border: none; cursor: pointer; flex-shrink: 0; }
+.qc-clipboard-empty { padding: 16px; text-align: center; color: #888; font-size: 13px; }
+.qc-status-msg { font-size: 12.5px; margin-top: 8px; text-align: center; color: #2c2d2e; font-weight: 600; }
+.qc-result-text { font-family: 'Cardo', Georgia, serif; font-size: 17px; color: #2c2d2e; line-height: 1.55; margin-bottom: 10px; }
+.qc-regen-btn {
+  display: flex; align-items: center; justify-content: center;
+  width: 46px; height: 46px; border-radius: 50%; margin: 4px auto 16px;
+  background: #fff; border: 1px solid #e5e0e3; cursor: pointer;
+  box-shadow: 0 3px 10px rgba(0,0,0,.08); transition: transform .15s ease, background .15s ease;
+  font-size: 19px; color: #2c2d2e;
+}
+.qc-regen-btn:hover { background: var(--qc-envelope, #af95a6); transform: rotate(45deg); }
+.qc-regen-btn:disabled { opacity: .4; cursor: default; }
+.qc-regen-btn:disabled:hover { transform: none; background: #fff; }
+.qc-loading { text-align: center; color: #af95a6; font-size: 13px; padding: 24px 0; }
+.qc-back { font-size: 13px; color: #af95a6; background: none; border: none; cursor: pointer; margin: 0 0 14px; padding: 0; text-decoration: underline; display: block; }
+</style>
+
+<div class="qc-widget-inline">
+  <button class="btn-write" onclick="qcOpenPanel()">
+    <svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg> Help me write this card
+  </button>
+
+  <div class="wm-overlay" id="wmOverlay" onclick="qcClosePanel()"></div>
+  <div class="wm-panel" id="wmPanel" style="--qc-envelope: {{ qc_color }};">
+    <div class="wm-panel-head" style="background: {{ qc_color }};">
+      <button class="wm-panel-close" onclick="qcClosePanel()">×</button>
+      <h2>Write a Message</h2>
+      <p>For the {{ product.title }} — let's find the words.</p>
+    </div>
+    <div class="wm-panel-body" id="wmBody"></div>
+  </div>
+</div>
+
+<script>
+  // Real product data, read directly from Liquid — works on every product
+  // this snippet is placed on, no per-card duplication needed.
+  window.qcProductContext = {
+    title: {{ product.title | json }},
+    description: {{ product.description | strip_html | truncate: 300 | json }},
+    image: {{ product.featured_image | image_url: width: 400 | json }},
+    tags: {{ product.tags | json }},
+    variantId: {{ product.selected_or_first_available_variant.id | json }}
+  };
+
+  // ⚠️ Replace with your real deployed Tool 2 Worker URL
+  window.qcWorkerUrl = "https://REPLACE-WITH-YOUR-WORKER-URL.workers.dev";
+</script>
+
+<script>
+(function(){
+  // Real product data, injected by blocks/write-with-us.liquid via Liquid —
+  // no hardcoding needed. Works correctly on every product this block is
+  // placed on.
+  const productContext = window.qcProductContext || {};
+  const WORKER_URL = window.qcWorkerUrl;
+
+  const state = { occasion:'', recipient:'', tone:'Heartfelt', length:'Short', notes:'', results:[], selected:[], clipboardOpen:false, statusMsg:'', justRefreshed:[] };
+
+  // Auto-fill Occasion from the card's own tags, if a clear match exists.
+  const OCCASION_TAGS = ["Birthday","Anniversary","Thank You","Congratulations","Sympathy","Wedding","New Baby"];
+  function autofillOccasionFromTags(){
+    const tags = Array.isArray(productContext.tags) ? productContext.tags : [];
+    const match = OCCASION_TAGS.find(o => tags.some(t => String(t).toLowerCase() === o.toLowerCase()));
+    if(match) state.occasion = match;
+  }
+  autofillOccasionFromTags();
+
+  window.renderForm = function renderForm(){
+    document.getElementById('wmBody').innerHTML = `
+      <div class="qc-how-it-works">
+        Write your message below, select your favorites, then tap <strong>Save to Clipboard</strong>. Whatever's saved gets included automatically in your order confirmation email.
+      </div>
+
+      <div class="wm-context">
+        <img src="${productContext.image || ''}" alt="">
+        <span>Writing a message for:<strong>${productContext.title || ''}</strong></span>
+      </div>
+
+      <div class="qc-section">
+        <label class="qc-label">Occasion</label>
+        <input class="qc-input" id="qcOccasion" placeholder="Birthday, anniversary, thank you..." value="${state.occasion}">
+
+        <label class="qc-label">Who's it for?</label>
+        <input class="qc-input" id="qcRecipient" placeholder="My mom, a close friend, my boss..." value="${state.recipient}">
+
+        <label class="qc-label">Tone</label>
+        <select class="qc-select" id="qcTone">
+          ${['Heartfelt','Playful & funny','Elegant & poetic','Simple & warm'].map(t =>
+            `<option ${t===state.tone?'selected':''}>${t}</option>`).join('')}
+        </select>
+
+        <label class="qc-label">Message length</label>
+        <div class="qc-toggle-row">
+          <div class="qc-toggle-btn ${state.length==='Short'?'active':''}" onclick="qcSetLength('Short')">Short</div>
+          <div class="qc-toggle-btn ${state.length==='Long'?'active':''}" onclick="qcSetLength('Long')">Long</div>
+        </div>
+
+        <label class="qc-label">Anything to include? (optional)</label>
+        <textarea class="qc-textarea" id="qcNotes" placeholder="An inside joke, a memory, why you're grateful...">${state.notes}</textarea>
+      </div>
+
+      <button class="qc-btn" onclick="qcGenerate()"><svg viewBox="0 0 24 24" fill="currentColor" xmlns="http://www.w3.org/2000/svg"><path d="M20.71 7.04c.39-.39.39-1.04 0-1.41l-2.34-2.34c-.37-.39-1.02-.39-1.41 0l-1.84 1.83 3.75 3.75M3 17.25V21h3.75L17.81 9.93l-3.75-3.75L3 17.25Z"/></svg> Write My Message</button>
+    `;
+  }
+
+  function renderLoading(){
+    document.getElementById('wmBody').innerHTML = `<div class="qc-loading">Writing something worth keeping...</div>`;
+  }
+
+  // ---- Persistent clipboard (localStorage — same idea as a Shopify cart persisting in-browser) ----
+  const CLIPBOARD_KEY = 'qcMessageClipboard';
+
+  function qcLoadClipboard(){
+    try { return JSON.parse(localStorage.getItem(CLIPBOARD_KEY) || '[]'); }
+    catch(e){ return []; }
+  }
+  function qcSaveClipboardArr(arr){
+    try { localStorage.setItem(CLIPBOARD_KEY, JSON.stringify(arr)); } catch(e){}
+  }
+
+  // Auto-clear the clipboard once a checkout has actually gone through.
+  // There's no reliable "checkout completed" event available to a script
+  // running on the product page (that happens on Shopify's separate
+  // checkout/thank-you flow, which we don't run on). Instead, this checks
+  // the ACTUAL live cart via Shopify's /cart.js on every page load: if the
+  // cart is empty but the clipboard still has saved messages in it, that's
+  // a strong signal a checkout just completed (or the cart was intentionally
+  // cleared) — safe to clear at that point.
+  //
+  // Deliberately NOT clearing immediately after each individual "Save to
+  // Clipboard & Add to Cart" click — that would break multi-card orders,
+  // wiping an earlier card's saved message before a second card gets added
+  // to the same cart.
+  async function qcCheckForCompletedCheckout(){
+    const existing = qcLoadClipboard();
+    if(existing.length === 0) return; // nothing to clear
+    try{
+      const res = await fetch('/cart.js');
+      if(!res.ok) return;
+      const cart = await res.json();
+      if(cart.item_count === 0){
+        qcSaveClipboardArr([]);
+      }
+    } catch(e){ /* non-fatal — leave clipboard as-is if we can't check */ }
+  }
+  qcCheckForCompletedCheckout();
+  window.qcToggleClipboardPanel = function(){
+    state.clipboardOpen = !state.clipboardOpen;
+    renderResults();
+  };
+  window.qcRemoveClipboardItem = function(idx){
+    const arr = qcLoadClipboard();
+    arr.splice(idx, 1);
+    qcSaveClipboardArr(arr);
+    renderResults();
+  };
+
+  function clipboardBarAndPanel(){
+    const arr = qcLoadClipboard();
+    const bar = `
+      <div class="qc-clipboard-bar" onclick="qcToggleClipboardPanel()">
+        <span>🗂 Saved messages</span>
+        <span class="count">${arr.length}</span>
+      </div>`;
+    if(!state.clipboardOpen) return bar;
+    const panel = arr.length
+      ? `<div class="qc-clipboard-panel">${arr.map((item, i) => `
+          <div class="qc-clipboard-item">
+            <div class="qc-clipboard-item-text">${item.text}</div>
+            <button class="qc-clipboard-remove" onclick="qcRemoveClipboardItem(${i})">Remove</button>
+          </div>
+        `).join('')}</div>`
+      : `<div class="qc-clipboard-panel"><div class="qc-clipboard-empty">No saved messages yet — select one below and tap "Save to Clipboard & Add to Cart".</div></div>`;
+    return bar + panel;
+  }
+
+  function renderResults(){
+    document.getElementById('wmBody').innerHTML = `
+      <div class="qc-how-it-works">
+        Write your message below, select your favorites, then tap <strong>Save to Clipboard</strong>. Whatever's saved gets included automatically in your order confirmation email.
+      </div>
+
+      <button class="qc-back" onclick="renderForm()">← Edit details</button>
+      ${clipboardBarAndPanel()}
+      ${state.results.map((r,i) => `
+        <div class="qc-result ${state.selected[i] ? 'locked' : ''}">
+          <input type="checkbox" class="qc-result-check" ${state.selected[i] ? 'checked' : ''} onchange="qcToggleSelect(${i})">
+          <div class="qc-result-main">
+            ${state.selected[i] ? '<span class="qc-locked-tag">Kept for next round</span>' : ''}
+            ${state.justRefreshed[i] ? '<span class="qc-refreshed-tag">Refreshed</span>' : ''}
+            <div class="qc-result-text">${r}</div>
+          </div>
+        </div>
+      `).join('')}
+      <button class="qc-regen-btn" onclick="qcGenerate(true)" ${state.results.every((r,i)=>state.selected[i]) ? 'disabled' : ''} title="Regenerate unselected messages">↻</button>
+      <button class="qc-btn" onclick="qcSaveAndAddToCart()">Save to Clipboard &amp; Add to Cart</button>
+      ${state.statusMsg ? `<div class="qc-status-msg">${state.statusMsg}</div>` : ""}
+    `;
+  }
+
+  window.qcToggleSelect = function(i){
+    state.selected[i] = !state.selected[i];
+    renderResults();
+  };
+
+  window.qcSetLength = function(val){
+    state.length = val;
+    renderForm();
+  };
+
+  // Builds the plain delimited string sent to Shopify as a cart attribute.
+  // Format: "Card Title|||Message text@@@Card Title 2|||Message text 2"
+  // Delimited (not JSON) on purpose — Shopify's email Liquid has no filter to
+  // parse a JSON string back into an object, but it does have a plain "split"
+  // filter, which this format is built to work with.
+  function qcBuildClipboardAttributeValue(arr){
+    return arr.map(item => `${item.card}|||${item.text}`).join('@@@');
+  }
+
+  window.qcSaveAndAddToCart = async function(){
+    const selectedMessages = state.results.filter((r, i) => state.selected[i]);
+
+    if(selectedMessages.length === 0){
+      state.statusMsg = "Select at least one message first (check the box next to it).";
+      renderResults();
+      return;
+    }
+
+    // Save selected messages into the persistent clipboard
+    const arr = qcLoadClipboard();
+    selectedMessages.forEach(text => {
+      if(!arr.some(item => item.text === text)){
+        arr.push({ text, card: productContext.title, savedAt: Date.now() });
+      }
+    });
+    qcSaveClipboardArr(arr);
+
+    state.statusMsg = "Saved to clipboard. Adding to cart...";
+    renderResults();
+
+    try{
+      const res = await fetch('/cart/add.js', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ items: [{ id: productContext.variantId, quantity: 1 }] })
+      });
+
+      if(res.ok){
+        // Push the ENTIRE clipboard (not just what was just saved) into a cart
+        // attribute, so it flows through checkout into the order and is
+        // available to the order confirmation email template.
+        const fullClipboard = qcLoadClipboard();
+        try{
+          await fetch('/cart/update.js', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              attributes: {
+                'Saved Card Messages': qcBuildClipboardAttributeValue(fullClipboard)
+              }
+            })
+          });
+        } catch(e){ /* non-fatal — cart add already succeeded */ }
+
+        state.statusMsg = "Saved to clipboard and added to your cart ✓";
+      } else {
+        state.statusMsg = "Couldn't add to cart — saved to clipboard only.";
+      }
+    } catch(e){
+      state.statusMsg = "Couldn't add to cart — saved to clipboard only.";
+    }
+
+    renderResults();
+  };
+
+  window.qcGenerate = async function(isRegenerate){
+    state.statusMsg = '';
+    state.occasion = document.getElementById('qcOccasion')?.value || state.occasion;
+    state.recipient = document.getElementById('qcRecipient')?.value || state.recipient;
+    state.tone = document.getElementById('qcTone')?.value || state.tone;
+    state.notes = document.getElementById('qcNotes')?.value || state.notes;
+
+    // Only treat this as a "regenerate keeping locked messages" when it's
+    // actually triggered by the regenerate icon button. Writing fresh from
+    // the form always starts clean — no merge, no "Refreshed" tags.
+    if(!isRegenerate){
+      state.selected = [];
+      state.results = [];
+    }
+
+    const lockedResults = state.results.filter((r, i) => state.selected[i]);
+    const neededCount = Math.max(0, 3 - lockedResults.length);
+
+    if(isRegenerate && neededCount === 0){
+      return; // everything is locked — nothing to regenerate
+    }
+
+    renderLoading();
+
+    try{
+      const response = await fetch(WORKER_URL, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          occasion: state.occasion,
+          recipient: state.recipient,
+          tone: state.tone,
+          notes: state.notes,
+          length: state.length,
+          productContext: { title: productContext.title, description: productContext.description, tags: productContext.tags },
+        })
+      });
+
+      if (response.status === 429) {
+        state.results = ["You've reached the limit for now — please try again in a little while."];
+        state.selected = [];
+      } else if (!response.ok) {
+        state.results = ["We couldn't write that just now — tap the regenerate button to try again."];
+        state.selected = [];
+      } else {
+        const data = await response.json();
+        const fresh = Array.isArray(data.messages) && data.messages.length ? data.messages : [];
+        if(fresh.length){
+          if(state.results.length === 0){
+            state.results = fresh.slice(0, 3);
+            state.selected = state.results.map(() => false);
+            state.justRefreshed = state.results.map(() => false);
+          } else {
+            let freshIndex = 0;
+            const refreshedFlags = [];
+            const merged = state.results.map((r, i) => {
+              if(state.selected[i]) { refreshedFlags[i] = false; return r; }
+              const replacement = fresh[freshIndex] !== undefined ? fresh[freshIndex] : r;
+              refreshedFlags[i] = fresh[freshIndex] !== undefined;
+              freshIndex++;
+              return replacement;
+            });
+            state.results = merged;
+            state.justRefreshed = refreshedFlags;
+          }
+        } else {
+          state.results = ["We couldn't write that just now — tap the regenerate button to try again."];
+          state.selected = [];
+        }
+      }
+    } catch(e){
+      state.results = ["We couldn't write that just now — please try again shortly."];
+      state.selected = [];
+    }
+    renderResults();
+  };
+
+  window.qcOpenPanel = function(){
+    document.getElementById('wmOverlay').classList.add('open');
+    document.getElementById('wmPanel').classList.add('open');
+    if(state.results.length > 0){
+      renderResults();
+    } else {
+      renderForm();
+    }
+  };
+
+  window.qcClosePanel = function(){
+    document.getElementById('wmOverlay').classList.remove('open');
+    document.getElementById('wmPanel').classList.remove('open');
+  };
+})();
+</script>
