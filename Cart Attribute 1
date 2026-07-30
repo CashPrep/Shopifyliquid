@@ -1,0 +1,23 @@
+// Builds the plain delimited string sent to Shopify as a cart attribute.
+// Format: "Card Title|||Message text@@@Card Title 2|||Message text 2"
+// Delimited (not JSON) on purpose — Shopify's email Liquid has no filter to
+// parse a JSON string back into an object, but it does have a plain "split"
+// filter, which this format is built to work with.
+function qcBuildClipboardAttributeValue(arr){
+  return arr.map(item => `${item.card}|||${item.text}`).join('@@@');
+}
+
+// ...inside qcSaveAndAddToCart(), right after the /cart/add.js call succeeds:
+
+const fullClipboard = qcLoadClipboard();
+try{
+  await fetch('/cart/update.js', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({
+      attributes: {
+        'Saved Card Messages': qcBuildClipboardAttributeValue(fullClipboard)
+      }
+    })
+  });
+} catch(e){ /* non-fatal — cart add already succeeded */ }
