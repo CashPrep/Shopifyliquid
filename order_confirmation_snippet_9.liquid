@@ -1,0 +1,220 @@
+{%- comment -%}
+  Write with Us — saved card messages in the order confirmation email.
+
+  Reads the "Saved Card Messages" cart attribute (a delimited string, not JSON —
+  Shopify's notification Liquid has no filter to parse JSON back into an object,
+  only "split", so this format is built for that).
+
+  Format: "Card Title|||Message text|||Image URL|||Product URL@@@Card Title 2|||..."
+
+  Image URL and Product URL were added to the attribute (upstream, on the
+  product page tool) specifically so a thumbnail + "Shop This Card" button can
+  be shown even for messages saved on cards that DIDN'T end up in this order —
+  there's no line item to pull image/URL from in that case, so the attribute
+  itself is the only source.
+
+  For each saved message, this checks whether a line item in THIS order matches
+  the card title:
+    - MATCHED: image + URL come from the live line item (line.image, line.url)
+      — more reliable than the saved snapshot, since it reflects the actual
+      purchased variant.
+    - UNMATCHED (saved for later, not purchased this order): image + URL come
+      from the attribute itself (parts[2] / parts[3]). If an entry was saved
+      before this format existed, those parts will be blank and the card just
+      renders as text-only, same as before.
+
+  Nothing is ever dropped — every saved message shows somewhere, per the
+  original decision to always include the full clipboard.
+
+  Button label: "Shop This Card" is used for BOTH matched and unmatched cards
+  (assumption — "Buy Now" read oddly on a card already in this order; flag if
+  you'd rather split the copy).
+
+  Layout uses HTML tables (not flexbox/CSS grid) for the thumbnail+text row —
+  flexbox isn't reliably supported in email clients (notably Outlook desktop,
+  which renders via Word's engine). Tables are the standard, reliable way to
+  do side-by-side layout across all major email clients.
+
+  All user/AI-generated text (card title, message) is passed through the
+  `escape` filter before output, so stray HTML-significant characters (<, >, &
+  — e.g. someone writing "<3" for a heart) can't break the email's markup.
+
+  --- "SEE ALL MESSAGES" (new) ---
+  If there are more than 3 saved messages total (matched + unmatched combined,
+  counted in the same order they already render: matched first, then
+  unmatched), only the first 3 show by default. The rest sit behind a
+  "See all messages" toggle at the bottom-right of the section, which can
+  also be collapsed back via a "Show fewer messages" toggle once expanded.
+
+  IMPORTANT CLIENT-COMPATIBILITY CAVEAT: every other piece of this file uses
+  ONLY inline styles, specifically because that's the most reliable way to
+  style HTML email across clients. A real click-to-expand toggle is NOT
+  possible with inline styles alone — it requires a <style> block using the
+  checkbox-and-label CSS trick (a hidden checkbox + a <label> pointing at it,
+  with a `:checked ~` sibling-selector rule revealing the hidden content).
+  That trick is well-supported in Apple Mail (desktop + iOS) and the Gmail
+  app, but NOT in Outlook desktop (Windows) — its Word-based rendering engine
+  doesn't support the `:checked` pseudo-class or sibling combinators. In that
+  specific client, the "See all messages" link will be visible but clicking
+  it won't do anything — messages beyond the first 3 won't be reachable
+  there. This is a known, real limitation of interactive email, not a bug —
+  flagging it plainly rather than glossing over it. If your customers are
+  meaningfully on Outlook desktop, consider whether this trade-off is
+  acceptable before shipping.
+{%- endcomment -%}
+
+{%- assign saved_messages_raw = attributes['Saved Card Messages'] -%}
+{%- if saved_messages_raw and saved_messages_raw != empty -%}
+  {%- assign saved_entries = saved_messages_raw | split: '@@@' -%}
+
+  <div style="margin: 24px 0; padding: 20px; background: #faf8f5; border-radius: 10px; border: 1px solid #e5e0e3;">
+    <h2 style="font-size: 18px; margin: 0 0 12px; font-family: Georgia, serif; color: #2c2d2e;">Your saved card messages</h2>
+
+    {%- assign matched_count = 0 -%}
+    {%- assign visible_count = 0 -%}
+    {%- assign hidden_count = 0 -%}
+    {%- capture visible_html -%}{%- endcapture -%}
+    {%- capture hidden_html -%}{%- endcapture -%}
+
+    {%- comment -%} PASS 1: matched entries (cards actually in this order), in their original relative order {%- endcomment -%}
+    {%- for entry in saved_entries -%}
+      {%- assign parts = entry | split: '|||' -%}
+      {%- assign saved_card_title = parts[0] -%}
+      {%- assign saved_message_text = parts[1] -%}
+
+      {%- assign matched_line = nil -%}
+      {%- for line in line_items -%}
+        {%- if line.title == saved_card_title -%}
+          {%- assign matched_line = line -%}
+        {%- endif -%}
+      {%- endfor -%}
+
+      {%- if matched_line -%}
+        {%- assign matched_count = matched_count | plus: 1 -%}
+        {%- capture this_block -%}
+          <div style="margin-bottom: 14px; padding: 14px; background: #ffffff; border-radius: 8px; border: 1px solid #e5e0e3;">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #af95a6; font-weight: 700; margin-bottom: 10px;">
+              For your {{ saved_card_title | escape }}
+            </div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                {%- if matched_line.image -%}
+                  <td width="70" valign="top" style="width: 70px; padding-right: 12px;">
+                    <a href="{{ shop.url }}{{ matched_line.url }}?utm_source=order_confirmation&utm_medium=email&utm_campaign=shop_this_card" target="_blank" rel="noopener" style="display: block;">
+                      <img src="{{ matched_line.image | image_url: width: 160 }}" width="70" height="70" alt="{{ saved_card_title | escape }}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e0e3; display: block;">
+                    </a>
+                  </td>
+                {%- endif -%}
+                <td valign="top">
+                  <div style="font-family: Georgia, serif; font-size: 15px; line-height: 1.5; color: #2c2d2e; margin-bottom: 10px;">
+                    {{ saved_message_text | escape }}
+                  </div>
+                  <a href="{{ shop.url }}{{ matched_line.url }}?utm_source=order_confirmation&utm_medium=email&utm_campaign=shop_this_card" target="_blank" rel="noopener" style="display: inline-block; background: #af95a6; color: #ffffff; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; text-decoration: none; padding: 9px 16px; border-radius: 4px;">
+                    Shop This Card
+                  </a>
+                </td>
+              </tr>
+            </table>
+          </div>
+        {%- endcapture -%}
+        {%- assign visible_count = visible_count | plus: 1 -%}
+        {%- if visible_count <= 3 -%}
+          {%- assign visible_html = visible_html | append: this_block -%}
+        {%- else -%}
+          {%- assign hidden_html = hidden_html | append: this_block -%}
+          {%- assign hidden_count = hidden_count | plus: 1 -%}
+        {%- endif -%}
+      {%- endif -%}
+    {%- endfor -%}
+
+    {%- comment -%} PASS 2: unmatched entries (saved but not purchased this order), in their original relative order {%- endcomment -%}
+    {%- for entry in saved_entries -%}
+      {%- assign parts = entry | split: '|||' -%}
+      {%- assign saved_card_title = parts[0] -%}
+      {%- assign saved_message_text = parts[1] -%}
+      {%- assign saved_card_image = parts[2] -%}
+      {%- assign saved_card_url = parts[3] -%}
+
+      {%- assign matched_line = nil -%}
+      {%- for line in line_items -%}
+        {%- if line.title == saved_card_title -%}
+          {%- assign matched_line = line -%}
+        {%- endif -%}
+      {%- endfor -%}
+
+      {%- unless matched_line -%}
+        {%- capture this_block -%}
+          <div style="margin-bottom: 14px; padding: 14px; background: #ffffff; border-radius: 8px; border: 1px dashed #d8cbae;">
+            <div style="font-size: 11px; text-transform: uppercase; letter-spacing: .04em; color: #999; font-weight: 700; margin-bottom: 10px;">
+              Saved for later — {{ saved_card_title | escape }}
+            </div>
+            <table role="presentation" width="100%" cellpadding="0" cellspacing="0" border="0">
+              <tr>
+                {%- if saved_card_image and saved_card_image != blank -%}
+                  <td width="70" valign="top" style="width: 70px; padding-right: 12px;">
+                    {%- if saved_card_url and saved_card_url != blank -%}
+                      <a href="{{ saved_card_url }}?utm_source=order_confirmation&utm_medium=email&utm_campaign=shop_this_card" target="_blank" rel="noopener" style="display: block;">
+                        <img src="{{ saved_card_image }}" width="70" height="70" alt="{{ saved_card_title | escape }}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e0e3; display: block;">
+                      </a>
+                    {%- else -%}
+                      <img src="{{ saved_card_image }}" width="70" height="70" alt="{{ saved_card_title | escape }}" style="width: 70px; height: 70px; object-fit: cover; border-radius: 6px; border: 1px solid #e5e0e3; display: block;">
+                    {%- endif -%}
+                  </td>
+                {%- endif -%}
+                <td valign="top">
+                  <div style="font-family: Georgia, serif; font-size: 15px; line-height: 1.5; color: #2c2d2e; margin-bottom: 10px;">
+                    {{ saved_message_text | escape }}
+                  </div>
+                  {%- if saved_card_url and saved_card_url != blank -%}
+                    <a href="{{ saved_card_url }}?utm_source=order_confirmation&utm_medium=email&utm_campaign=shop_this_card" target="_blank" rel="noopener" style="display: inline-block; background: #af95a6; color: #ffffff; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; text-decoration: none; padding: 9px 16px; border-radius: 4px;">
+                      Shop This Card
+                    </a>
+                  {%- endif -%}
+                </td>
+              </tr>
+            </table>
+          </div>
+        {%- endcapture -%}
+        {%- assign visible_count = visible_count | plus: 1 -%}
+        {%- if visible_count <= 3 -%}
+          {%- assign visible_html = visible_html | append: this_block -%}
+        {%- else -%}
+          {%- assign hidden_html = hidden_html | append: this_block -%}
+          {%- assign hidden_count = hidden_count | plus: 1 -%}
+        {%- endif -%}
+      {%- endunless -%}
+    {%- endfor -%}
+
+    {{ visible_html }}
+
+    {%- if hidden_count > 0 -%}
+      <style>
+        /* Checkbox+label toggle — see the compatibility note in the comment
+           block at the top of this file. Scoped to this section only.
+           Two labels point at the SAME checkbox — clicking a <label>
+           linked via `for` to a checkbox always toggles it (checks if
+           unchecked, unchecks if checked), so this gives a working
+           open/close pair: the "See all" label shows while collapsed,
+           the "Show fewer" label shows while expanded, and clicking
+           either one flips the state. */
+        .qc-see-all-checkbox { display: none; }
+        .qc-see-all-hidden { display: none; }
+        .qc-see-all-checkbox:checked ~ .qc-see-all-hidden { display: block; }
+        .qc-see-all-open-label { display: block; }
+        .qc-see-all-checkbox:checked ~ .qc-see-all-open-label { display: none; }
+        .qc-see-all-close-label { display: none; }
+        .qc-see-all-checkbox:checked ~ .qc-see-all-close-label { display: block; }
+      </style>
+      <input type="checkbox" id="qc-see-all-{{ order.id }}" class="qc-see-all-checkbox">
+      <div class="qc-see-all-hidden">
+        {{ hidden_html }}
+      </div>
+      <label for="qc-see-all-{{ order.id }}" class="qc-see-all-open-label" style="text-align: right; margin-top: 4px; font-size: 12.5px; font-weight: 700; color: #af95a6; letter-spacing: .02em; cursor: pointer; text-decoration: underline;">
+        See all messages ({{ hidden_count }} more) &rarr;
+      </label>
+      <label for="qc-see-all-{{ order.id }}" class="qc-see-all-close-label" style="text-align: right; margin-top: 4px; font-size: 12.5px; font-weight: 700; color: #999; letter-spacing: .02em; cursor: pointer; text-decoration: underline;">
+        Show fewer messages &times;
+      </label>
+    {%- endif -%}
+  </div>
+{%- endif -%}
